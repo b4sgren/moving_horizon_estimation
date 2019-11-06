@@ -33,7 +33,7 @@ class MHE:
         return temp
 
     def update(self, mu, z, v, w):
-        G, V, M, Q = self.getJacobians(mu, v, w)
+        G, V, M, R = self.getJacobians(mu, v, w)    # Motion wrt states, Motion wrt inputs, Process noise (v/w), Sensor noise
 
         mu_bar = self.propagateState(mu, v, w)
         Sigma_bar = G @ self.Sigma @ G.T + V @ M @ V.T
@@ -85,6 +85,6 @@ class MHE:
                      params.alpha3 * v**2 + params.alpha4 * w**2])
 
         #Measurement Noise
-        Q = np.diag([params.sigma_r**2, params.sigma_theta**2])
+        R = np.diag([params.sigma_r**2, params.sigma_theta**2])
 
-        return G, V, M, Q
+        return G, V, M, R
