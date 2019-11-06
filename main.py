@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
         state = mhe.propagateState(state, v[i], w[i])
         zt = getMeasurements(state)
-        mu, Sigma, K = mhe.update(mu, zt, vc[i], wc[i])
+        mu, Sigma= mhe.update(mu, zt, vc[i], wc[i])
         dead_reckon = mhe.propagateState(dead_reckon, vc[i], wc[i])
 
     fig1, ax1 = plt.subplots(nrows=3, ncols=1, sharex=True)
