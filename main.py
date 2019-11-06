@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 from car_animation import CarAnimation
 import car_params as params
 import scipy.io as sio
-from ekf import EKF
-from ekf import unwrap
+from mhe import MHE
+from mhe import unwrap
 
 
 def generateVelocities(t):
@@ -39,18 +39,13 @@ def getMeasurements(state):
     return z
 
 if __name__ == "__main__":
-    read_file = False
-    if read_file:
-        t, v, w = readFile()
-        vc, wc = generateVelocities(t)
-    else:
-        t = np.arange(0, params.tf, params.dt)
-        vc, wc = generateVelocities(t)
-        v = vc + np.sqrt(params.alpha1 * vc**2 + params.alpha2 * wc**2) * np.random.randn(vc.size)
-        w = wc + np.sqrt(params.alpha3 * vc**2 + params.alpha4 * wc**2) * np.random.randn(wc.size)
+    t = np.arange(0, params.tf, params.dt)
+    vc, wc = generateVelocities(t)
+    v = vc + np.sqrt(params.alpha1 * vc**2 + params.alpha2 * wc**2) * np.random.randn(vc.size)
+    w = wc + np.sqrt(params.alpha3 * vc**2 + params.alpha4 * wc**2) * np.random.randn(wc.size)
 
     Car = CarAnimation()
-    ekf = EKF(params.dt)
+    mhe = MHE(params.dt)
 
     x_hist = []
     mu_hist = []
@@ -58,7 +53,6 @@ if __name__ == "__main__":
     x_covar_hist = []
     y_covar_hist = []
     psi_covar_hist = []
-    K_hist = []
 
     x0 = params.x0
     y0 = params.y0
@@ -66,7 +60,7 @@ if __name__ == "__main__":
     state = np.array([x0, y0, phi0])
     dead_reckon = np.array([x0, y0, phi0])
     mu = np.array([x0, y0, phi0])
-    Sigma = np.eye(3)
+    Sigma = np.eye(3) #Will we have a covariance with this estimator?
 
     for i in range(t.size):
         #stuff for plotting
@@ -82,12 +76,10 @@ if __name__ == "__main__":
         Car.animateCar(state, mu, dead_reckon)
         plt.pause(0.02)
 
-        state = ekf.propagateState(state, v[i], w[i])
+        state = mhe.propagateState(state, v[i], w[i])
         zt = getMeasurements(state)
-        mu, Sigma, K = ekf.update(mu, zt, vc[i], wc[i])
-        dead_reckon = ekf.propagateState(dead_reckon, vc[i], wc[i])
-
-        K_hist.append(K)
+        mu, Sigma, K = mhe.update(mu, zt, vc[i], wc[i])
+        dead_reckon = mhe.propagateState(dead_reckon, vc[i], wc[i])
 
     fig1, ax1 = plt.subplots(nrows=3, ncols=1, sharex=True)
     x_hist = np.array(x_hist).T
@@ -130,27 +122,6 @@ if __name__ == "__main__":
     ax2[2].legend()
     ax2[0].set_title("Error vs Time")
 
-    plt.figure(4)
-    K_hist = np.array(K_hist)
-    plt.plot(t, K_hist[:,0,0])
-    plt.plot(t, K_hist[:,1,0])
-    plt.plot(t, K_hist[:,2,0])
-    plt.plot(t, K_hist[:,0,1])
-    plt.plot(t, K_hist[:,1,1])
-    plt.plot(t, K_hist[:,2,1])
-    plt.xlabel("Time (s)")
-    plt.ylabel("Kalman Gain")
-    plt.title("Kalman Gain vs Time")
-
     plt.show()
     print("Finished")
     plt.close()
-
-'''
-Different Input Velocities: Change linear velocity doesn't do much. Maybe increase the covariance. Same with angular velocity
-Different Landmark locations: Doesn't affect the quality of the estimate too much. Changes the gains a little bit
-Number of Landmarks: Decreasing the number of landmarks decreases the quality of the est, increases covariance and increase abs_val of K. Increasing does the oppopsite
-Sensor Noise: Increasing noise decreases quality of estimate but not by much. This seems to be offset by the number of landmarks we are measuring.
-Control/Motion Noise: Doesn't do much to the estimate. Offset by number of landmarks we measure. Does affect the gain
-Yes the EKF behaves as expected
-'''

@@ -1,17 +1,22 @@
 import numpy as np
 import car_params as params
+from collections import deque   # Using a deque makes poping from left and appending on right easy
 
 def unwrap(phi):
-    while phi >= np.pi:
-        phi = phi - 2 * np.pi
-    while phi < -np.pi:
-        phi = phi + 2 * np.pi
+    phi -= 2 * np.pi * np.floor((phi + np.pi) * 0.5/np.pi)
     return phi
 
-class EKF:
+class MHE:
     def __init__(self, t):
         self.dt = t
         self.Sigma = np.eye(3)
+
+        self.pose_hist = deque()    # History of the last n poses
+        self.Q_hist = deque()       # History of the noise from motion since it is dependent on v and w
+        self.z_hist = deque()       # History of the measurements
+        self.Sigma_hist = deque()   # History of the Pose Covariance
+
+        self.N = 10  #Size of the window to optimize over
 
     def propagateState(self, state, v, w):
         theta = state[2]
@@ -38,7 +43,7 @@ class EKF:
             ds = lm - mu_bar[0:2]
 
             r = np.sqrt(ds @ ds)
-            phi = np.arctan2(ds[1], ds[0]) - mu_bar[2] 
+            phi = np.arctan2(ds[1], ds[0]) - mu_bar[2]
             phi = unwrap(phi)
             z_hat = np.array([r, phi])
 
@@ -50,7 +55,7 @@ class EKF:
 
             innov = z[:,i] - z_hat
             innov[1] = unwrap(innov[1])
-            mu_bar = mu_bar + K @ (innov) 
+            mu_bar = mu_bar + K @ (innov)
             mu_bar[2] = unwrap(mu_bar[2])
             Sigma_bar = (np.eye(3) - K @ H) @ Sigma_bar
 
