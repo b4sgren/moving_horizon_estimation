@@ -1,10 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from car_animation import CarAnimation
-import car_params as params
-import scipy.io as sio
-from mhe import MHE
 from mhe import unwrap
+import car_params as params
+from copy import deepcopy
 
 
 def generateVelocities(t):
@@ -12,14 +11,6 @@ def generateVelocities(t):
     w = -0.2 + 2 * np.cos(2 * np.pi * 0.6 * t)
 
     return v, w
-
-def readFile():
-    data = sio.loadmat("hw2_soln_data.mat")
-    t = data["t"].flatten()
-    v = data["v"].flatten()
-    w = data["om"].flatten()
-
-    return t, v, w
 
 def getMeasurements(state):
     z = np.zeros_like(params.lms, dtype=float)
@@ -38,90 +29,48 @@ def getMeasurements(state):
 
     return z
 
+def propagateState(state, v, w, dt):
+        theta = state[2]
+        st = np.sin(theta)
+        stw = np.sin(theta + w * dt)
+        ct = np.cos(theta)
+        ctw = np.cos(theta + w * dt)
+
+        A = np.array([-v/w * st + v/w * stw,
+                    v/w * ct - v/w * ctw,
+                    w * dt])
+        temp = state + A
+        temp[2] = unwrap(temp[2])
+        return temp
+
+def optimize(mu, z):
+    x0 = deepcopy(mu).flatten(order='F')
+    mu = mu.flatten(order='F')
+
 if __name__ == "__main__":
-    t = np.arange(0, params.tf, params.dt)
-    vc, wc = generateVelocities(t)
-    v = vc + np.sqrt(params.alpha1 * vc**2 + params.alpha2 * wc**2) * np.random.randn(vc.size)
+    dt = 0.1
+    t = np.arange(0, 1, .1)
+    vc, wc = generateVelocities(t)  # Control velocities
+    v = vc + np.sqrt(params.alpha1 * vc**2 + params.alpha2 * wc**2) * np.random.randn(vc.size) # True velocities
     w = wc + np.sqrt(params.alpha3 * vc**2 + params.alpha4 * wc**2) * np.random.randn(wc.size)
 
-    Car = CarAnimation()
-    mhe = MHE(params.dt)
+    state = [np.zeros(3)]
+    dead_reckon = [np.zeros(3)]
+    mu = [np.zeros(3)]
+    Sigma = [np.eye(3)] # Does the covariance shrink or do we just use the propagated covariance from odometry?
+    zt = [getMeasurements(state[0])]
 
-    x_hist = []
-    mu_hist = []
-    err_hist = []
-    x_covar_hist = []
-    y_covar_hist = []
-    psi_covar_hist = []
-
-    x0 = params.x0
-    y0 = params.y0
-    phi0 = params.theta0
-    state = np.array([x0, y0, phi0])
-    dead_reckon = np.array([x0, y0, phi0])
-    mu = np.array([x0, y0, phi0])
-    Sigma = np.eye(3) #Will we have a covariance with this estimator?
-
+    #Generate the data
     for i in range(t.size):
-        #stuff for plotting
-        x_hist.append(state)
-        mu_hist.append(mu)
-        err = state - mu
-        err[2] = unwrap(err[2])
-        err_hist.append(err)
-        x_covar_hist.append(Sigma[0,0])
-        y_covar_hist.append(Sigma[1,1])
-        psi_covar_hist.append(Sigma[2,2])
+        state.append(propagateState(state[-1], v[i], w[i], dt))
+        zt.append(getMeasurements(state[-1]))
+        mu.append(propagateState(mu[-1], vc[i], wc[i], dt))
+        dead_reckon.append(propagateState(dead_reckon[-1], vc[i], wc[i], dt))
+    
+    #Put into numpy arrays
+    state = np.array(state).T
+    mu = np.array(mu).T
+    dead_reckon = np.array(dead_reckon).T
+    zt = np.array(zt).T
 
-        Car.animateCar(state, mu, dead_reckon)
-        plt.pause(0.02)
-
-        state = mhe.propagateState(state, v[i], w[i])
-        zt = getMeasurements(state)
-        mu, Sigma= mhe.update(mu, zt, vc[i], wc[i])
-        dead_reckon = mhe.propagateState(dead_reckon, vc[i], wc[i])
-
-    fig1, ax1 = plt.subplots(nrows=3, ncols=1, sharex=True)
-    x_hist = np.array(x_hist).T
-    mu_hist = np.array(mu_hist).T
-    ax1[0].plot(t, x_hist[0,:], label="Truth")
-    ax1[0].plot(t, mu_hist[0,:], label="Est")
-    ax1[0].set_ylabel("x (m)")
-    ax1[0].legend()
-    ax1[1].plot(t, x_hist[1,:], label="Truth")
-    ax1[1].plot(t, mu_hist[1,:], label="Est")
-    ax1[1].set_ylabel("y (m)")
-    ax1[1].legend()
-    ax1[2].plot(t, x_hist[2,:], label="Truth")
-    ax1[2].plot(t, mu_hist[2,:], label="Est")
-    ax1[2].set_xlabel("Time (s)")
-    ax1[2].set_ylabel("$\psi$ (rad)")
-    ax1[2].legend()
-    ax1[0].set_title("Estimate vs Truth")
-
-    fig2, ax2 = plt.subplots(nrows=3, ncols=1, sharex=True)
-    err_hist = np.array(err_hist).T
-    x_err_bnd = np.sqrt(np.array(x_covar_hist)) * 2
-    y_err_bnd = np.sqrt(np.array(y_covar_hist)) * 2
-    psi_err_bnd = np.sqrt(np.array(psi_covar_hist)) * 2
-    ax2[0].plot(t, err_hist[0,:], label="Err")
-    ax2[0].plot(t, x_err_bnd, 'r', label="2 $\sigma$")
-    ax2[0].plot(t, -x_err_bnd, 'r', label="2 $\sigma$")
-    ax2[0].set_ylabel("Err (m)")
-    ax2[0].legend()
-    ax2[1].plot(t, err_hist[1,:], label="Err")
-    ax2[1].plot(t, y_err_bnd, 'r', label="2 $\sigma$")
-    ax2[1].plot(t, -y_err_bnd, 'r', label="2 $\sigma$")
-    ax2[1].set_ylabel("Err (m)")
-    ax2[1].legend()
-    ax2[2].plot(t, err_hist[2,:], label="Err")
-    ax2[2].plot(t, psi_err_bnd, 'r', label="2 $\sigma$")
-    ax2[2].plot(t, -psi_err_bnd, 'r', label="2 $\sigma$")
-    ax2[2].set_ylabel("Err (m)")
-    ax2[2].set_xlabel("Time (s)")
-    ax2[2].legend()
-    ax2[0].set_title("Error vs Time")
-
-    plt.show()
-    print("Finished")
-    plt.close()
+    optimize(mu, zt) # Need the first 10
