@@ -4,6 +4,7 @@ from car_animation import CarAnimation
 from mhe import unwrap
 import car_params as params
 from copy import deepcopy
+from scipy.optimize import minimize
 
 
 def generateVelocities(t):
@@ -43,9 +44,32 @@ def propagateState(state, v, w, dt):
         temp[2] = unwrap(temp[2])
         return temp
 
-def optimize(mu, z):
+def optimize(mu, z, lms):
     x0 = deepcopy(mu).flatten(order='F')
     mu = mu.flatten(order='F')
+
+    x_hat_opt = minimize(objective_fun, x0, method='SLSQP', args=(x0, z, lms), options={'ftol':1e-5, 'disp':True})
+
+    return x_hat_opt
+
+def objective_fun(mu, x0, z, lms):
+    R = np.diag([params.sigma_r**2, params.sigma_theta**2])
+    z_hat = h(mu, lms)
+
+def h(mu, lms): #Need to check if this works
+    z_hat = np.zeros((2, lms.shape[1], mu.shape[1]))
+    for i in range(lms.shape[1]):
+        lm = lms[:,i]
+        ds = lm.reshape((2,1)) - mu
+        r = np.sum(ds * ds, axis=1)
+        theta = np.arctan2(ds[1], ds[0]) - mu[2]
+        theta = unwrap(theta)
+
+        z_temp = np.vstack((r, theta))
+        z_hat[:,i,:] = z_temp 
+    
+    return z_hat
+
 
 if __name__ == "__main__":
     dt = 0.1
@@ -73,4 +97,4 @@ if __name__ == "__main__":
     dead_reckon = np.array(dead_reckon).T
     zt = np.array(zt).T
 
-    optimize(mu, zt) # Need the first 10
+    mu = optimize(mu, zt, params.lms)
