@@ -48,13 +48,31 @@ def optimize(mu, z, lms):
     x0 = deepcopy(mu).flatten(order='F')
     mu = mu.flatten(order='F')
 
-    x_hat_opt = minimize(objective_fun, mu, method='SLSQP', args=(x0, z, lms), options={'ftol':1e-5, 'disp':True})
+    x_hat_opt = minimize(objective_fun, mu, method='SLSQP', jac=False, args=(x0, z, lms), options={'ftol':1e-5, 'disp':True})
+
+    print("Optimized: ", x_hat_opt)
+    print("Original: ", x0)
+
 
     return x_hat_opt
 
 def objective_fun(mu, x0, z, lms):
     R = np.diag([params.sigma_r**2, params.sigma_theta**2])
+    R_inv = np.linalg.inv(R)
     z_hat = h(mu, lms)  #Get all expected measurements
+
+    Sigma = np.eye(3) * 0.1 # haven't propagated covariance. Will use this for now
+    Omega = np.linalg.inv(Sigma)
+
+    dx = (mu - x0).reshape((3, int(mu.size/3)), order='F')
+    e_x = np.sum(np.diagonal(dx.T @ Omega @ dx))
+
+    dz = z - z_hat
+    e_z = 0.0
+    for i in range(z.shape[2]):
+        e_z += np.sum(np.diagonal(dz[:,:,i].T @ R_inv @ dz[:,:,i])) # Cant do this multiplication
+
+    return e_x + e_z
 
 def h(mu, lms): #Need to check if this works
     z_hat = np.zeros((2, lms.shape[1], int(mu.size/3.0)))
@@ -96,6 +114,7 @@ if __name__ == "__main__":
     state = np.array(state).T
     mu = np.array(mu).T
     dead_reckon = np.array(dead_reckon).T
-    zt = np.array(zt).T
+    zt = np.array(zt)
+    zt = np.swapaxes(zt.T, 0, 1)    #Put in the correct shape for subtraction
 
     mu = optimize(mu, zt, params.lms)
