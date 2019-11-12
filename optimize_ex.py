@@ -53,8 +53,7 @@ def optimize(mu, z, lms):
     print("Optimized: ", x_hat_opt)
     print("Original: ", x0)
 
-
-    return x_hat_opt
+    return x_hat_opt.x
 
 def objective_fun(mu, x0, z, lms):
     R = np.diag([params.sigma_r**2, params.sigma_theta**2])
@@ -118,3 +117,11 @@ if __name__ == "__main__":
     zt = np.swapaxes(zt.T, 0, 1)    #Put in the correct shape for subtraction
 
     mu = optimize(mu, zt, params.lms)
+    mu = mu.reshape((3, int(mu.size/3)), order='F')
+
+    plt.figure(1)
+    plt.plot(state[0,:], state[1,:], 'b')
+    plt.plot(dead_reckon[0,:], dead_reckon[1,:], 'k')
+    plt.plot(mu[0,:], mu[1,:], 'r')
+
+    plt.show()
