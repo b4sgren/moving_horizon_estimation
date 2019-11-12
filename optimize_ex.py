@@ -48,21 +48,22 @@ def optimize(mu, z, lms):
     x0 = deepcopy(mu).flatten(order='F')
     mu = mu.flatten(order='F')
 
-    x_hat_opt = minimize(objective_fun, x0, method='SLSQP', args=(x0, z, lms), options={'ftol':1e-5, 'disp':True})
+    x_hat_opt = minimize(objective_fun, mu, method='SLSQP', args=(x0, z, lms), options={'ftol':1e-5, 'disp':True})
 
     return x_hat_opt
 
 def objective_fun(mu, x0, z, lms):
     R = np.diag([params.sigma_r**2, params.sigma_theta**2])
-    z_hat = h(mu, lms)
+    z_hat = h(mu, lms)  #Get all expected measurements
 
 def h(mu, lms): #Need to check if this works
-    z_hat = np.zeros((2, lms.shape[1], mu.shape[1]))
+    z_hat = np.zeros((2, lms.shape[1], int(mu.size/3.0)))
+    mu_temp = mu.reshape((3, int(mu.size/3)), order='F')
     for i in range(lms.shape[1]):
         lm = lms[:,i]
-        ds = lm.reshape((2,1)) - mu
-        r = np.sum(ds * ds, axis=1)
-        theta = np.arctan2(ds[1], ds[0]) - mu[2]
+        ds = lm.reshape((2,1)) - mu_temp[0:2]
+        r = np.sqrt(np.sum(ds * ds, axis=0))
+        theta = np.arctan2(ds[1], ds[0]) - mu_temp[2]
         theta = unwrap(theta)
 
         z_temp = np.vstack((r, theta))
