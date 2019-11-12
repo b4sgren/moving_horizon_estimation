@@ -22,10 +22,9 @@ def getMeasurements(state):
 
         r = np.sqrt(np.sum(ds**2))
         theta = np.arctan2(ds[1], ds[0]) - state[2]
-        # theta = unwrap(theta) #not sure if this should be here or down a few lines
 
-        z[0,i] = r + np.random.normal(0, params.sigma_r)
-        z[1,i] = theta + np.random.normal(0, params.sigma_theta)
+        z[0,i] = r #+ np.random.normal(0, params.sigma_r)
+        z[1,i] = theta #+ np.random.normal(0, params.sigma_theta)
         z[1,i] = unwrap(z[1,i])
 
     return z
@@ -84,8 +83,8 @@ def h(mu, lms): #Need to check if this works
         theta = unwrap(theta)
 
         z_temp = np.vstack((r, theta))
-        z_hat[:,i,:] = z_temp 
-    
+        z_hat[:,i,:] = z_temp
+
     return z_hat
 
 
@@ -108,7 +107,7 @@ if __name__ == "__main__":
         zt.append(getMeasurements(state[-1]))
         mu.append(propagateState(mu[-1], vc[i], wc[i], dt))
         dead_reckon.append(propagateState(dead_reckon[-1], vc[i], wc[i], dt))
-    
+
     #Put into numpy arrays
     state = np.array(state).T
     mu = np.array(mu).T
