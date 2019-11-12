@@ -36,7 +36,7 @@ class MHE:
         G, V, M, R = self.getJacobians(mu, v, w)    # Motion wrt states, Motion wrt inputs, Process noise (v/w), Sensor noise
 
         mu_bar = self.propagateState(mu, v, w)
-        Sigma_bar = G @ self.Sigma @ G.T + V @ M @ V.T
+        self.Sigma = G @ self.Sigma @ G.T + V @ M @ V.T
 
         # for i in range(z.shape[1]):
         #     lm = params.lms[:,i]
