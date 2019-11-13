@@ -52,6 +52,7 @@ class MHE:
             mu = self.optimize(self.pose_hist[-self.N:], self.z_hist[-self.N:], self.Sigma_hist[-self.N:])
         #Put mu back into pose_hist.
             mu = mu.reshape((3, int(mu.size/3)), order='F')
+            mu[2] = unwrap(mu[2])
             mu_bar = mu[:,-1]
             for i in range(self.N):
                 self.pose_hist[-(self.N - i)] = mu[:,i]
@@ -73,12 +74,14 @@ class MHE:
         z_hat = self.h(mu, lms)  #Get all expected measurements
 
         dx = (x0 - mu).reshape((3, int(mu.size/3)), order='F')
+        dx[2] = unwrap(dx[2])
         e_x = 0.0
         for i in range(Sigmas.shape[0]):
             e_x += dx[:,i] @ np.linalg.inv(Sigmas[i,:,:]) @ dx[:,i]
         # e_x = np.sum(np.diagonal(dx.T @ Omega @ dx))
 
         dz = z - z_hat
+        dz[1] = unwrap(dz[1])
         e_z = 0.0
         for i in range(z.shape[2]):
             e_z += np.sum(np.diagonal(dz[:,:,i].T @ R_inv @ dz[:,:,i]))
