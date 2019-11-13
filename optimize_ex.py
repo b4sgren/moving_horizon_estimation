@@ -63,13 +63,13 @@ def objective_fun(mu, x0, z, lms):
     Sigma = np.eye(3) * 0.1 # haven't propagated covariance. Will use this for now
     Omega = np.linalg.inv(Sigma)
 
-    dx = (mu - x0).reshape((3, int(mu.size/3)), order='F')
+    dx = (x0 - mu).reshape((3, int(mu.size/3)), order='F')
     e_x = np.sum(np.diagonal(dx.T @ Omega @ dx))
 
     dz = z - z_hat
     e_z = 0.0
     for i in range(z.shape[2]):
-        e_z += np.sum(np.diagonal(dz[:,:,i].T @ R_inv @ dz[:,:,i])) # Cant do this multiplication
+        e_z += np.sum(np.diagonal(dz[:,:,i].T @ R_inv @ dz[:,:,i]))
 
     return e_x + e_z
 

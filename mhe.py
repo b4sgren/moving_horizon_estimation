@@ -1,6 +1,7 @@
 import numpy as np
 import car_params as params
-from collections import deque   # Using a deque makes poping from left and appending on right easy
+from copy import deepcopy
+from scipy.optimize import minimize
 
 def unwrap(phi):
     phi -= 2 * np.pi * np.floor((phi + np.pi) * 0.5/np.pi)
@@ -11,10 +12,13 @@ class MHE:
         self.dt = t
         self.Sigma = np.eye(3)
 
-        self.pose_hist = deque()    # History of the last n poses
-        self.Q_hist = deque()       # History of the noise from motion since it is dependent on v and w
-        self.z_hist = deque()       # History of the measurements
-        self.Sigma_hist = deque()   # History of the Pose Covariance
+        self.pose_hist = []    # History of the last n poses
+        self.Q_hist = []       # History of the noise from motion since it is dependent on v and w. Is this needed
+        self.z_hist = []       # History of the measurements
+        self.Sigma_hist = []   # History of the Pose Covariance
+
+        self.pose_hist.append(np.zeros(3))
+        self.Sigma_hist.append(np.eye(3))
 
         self.N = 10  #Size of the window to optimize over
 
@@ -34,34 +38,67 @@ class MHE:
 
     def update(self, mu, z, v, w):
         G, V, M, R = self.getJacobians(mu, v, w)    # Motion wrt states, Motion wrt inputs, Process noise (v/w), Sensor noise
+        Q = V @ M @ V.T
 
         mu_bar = self.propagateState(mu, v, w)
-        Sigma_bar = G @ self.Sigma @ G.T + V @ M @ V.T
+        self.Sigma = G @ self.Sigma @ G.T + Q
 
-        # for i in range(z.shape[1]):
-        #     lm = params.lms[:,i]
-        #     ds = lm - mu_bar[0:2]
-        #
-        #     r = np.sqrt(ds @ ds)
-        #     phi = np.arctan2(ds[1], ds[0]) - mu_bar[2]
-        #     phi = unwrap(phi)
-        #     z_hat = np.array([r, phi])
-        #
-        #     H = np.array([[-(lm[0] - mu_bar[0])/r, -(lm[1] - mu_bar[1])/r, 0],
-        #                   [(lm[1] - mu_bar[1])/r**2, -(lm[0] - mu_bar[0])/r**2, -1]])
-        #
-        #     S = H @ Sigma_bar @ H.T + Q
-        #     K = Sigma_bar @ H.T @ np.linalg.inv(S)
-        #
-        #     innov = z[:,i] - z_hat
-        #     innov[1] = unwrap(innov[1])
-        #     mu_bar = mu_bar + K @ (innov)
-        #     mu_bar[2] = unwrap(mu_bar[2])
-        #     Sigma_bar = (np.eye(3) - K @ H) @ Sigma_bar
-        #
-        # self.Sigma = Sigma_bar
-        # mu_bar[2] = unwrap(mu_bar[2])
+        self.pose_hist.append(mu_bar)
+        self.Sigma_hist.append(self.Sigma)
+        self.Q_hist.append(Q)
+        self.z_hist.append(z)
+
+        if len(self.pose_hist) >= self.N + 1: # + 1 is a hack so we have 10 measurements also
+            mu = self.optimize(self.pose_hist[-self.N:], self.z_hist[-self.N:], self.Sigma_hist[-self.N:])
+        #Put mu back into pose_hist.
+            mu = mu.reshape((3, int(mu.size/3)), order='F')
+            mu_bar = mu[:,-1]
+            for i in range(self.N):
+                self.pose_hist[-(self.N - i)] = mu[:,i]
         return mu_bar, self.Sigma
+    
+    def optimize(self, mu, z, sigma):
+        mu = np.array(mu).T.flatten(order='F')
+        x0 = deepcopy(mu)
+        z = np.swapaxes(np.array(z).T, 0, 1)
+        sigma = np.array(sigma)
+
+        x_hat_opt = minimize(self.objective_fun, mu, method='SLSQP', jac=False, args=(x0, z, sigma, params.lms), options={'ftol':1e-5, 'disp':False})
+
+        return x_hat_opt.x
+    
+    def objective_fun(self, mu, x0, z, Sigmas, lms):
+        R = np.diag([params.sigma_r**2, params.sigma_theta**2])
+        R_inv = np.linalg.inv(R)
+        z_hat = self.h(mu, lms)  #Get all expected measurements
+
+        dx = (x0 - mu).reshape((3, int(mu.size/3)), order='F')
+        e_x = 0.0
+        for i in range(Sigmas.shape[0]):
+            e_x += dx[:,i] @ np.linalg.inv(Sigmas[i,:,:]) @ dx[:,i]
+        # e_x = np.sum(np.diagonal(dx.T @ Omega @ dx))
+
+        dz = z - z_hat
+        e_z = 0.0
+        for i in range(z.shape[2]):
+            e_z += np.sum(np.diagonal(dz[:,:,i].T @ R_inv @ dz[:,:,i]))
+
+        return e_x + e_z
+
+    def h(self, mu, lms): #Need to check if this works
+        z_hat = np.zeros((2, lms.shape[1], int(mu.size/3.0)))
+        mu_temp = mu.reshape((3, int(mu.size/3)), order='F')
+        for i in range(lms.shape[1]):
+            lm = lms[:,i]
+            ds = lm.reshape((2,1)) - mu_temp[0:2]
+            r = np.sqrt(np.sum(ds * ds, axis=0))
+            theta = np.arctan2(ds[1], ds[0]) - mu_temp[2]
+            theta = unwrap(theta)
+
+            z_temp = np.vstack((r, theta))
+            z_hat[:,i,:] = z_temp 
+        
+        return z_hat
 
     def getJacobians(self, mu, v, w):
         theta = mu[2]
