@@ -46,7 +46,7 @@ class MHE:
 
         self.pose_hist.append(mu_bar)
         self.Sigma_hist.append(self.Sigma)
-        self.Q_hist.append(Q)
+        self.Q_hist.append(M) # Q
         self.z_hist.append(z)
         self.u_hist.append(np.array([v,w]))
 
@@ -66,14 +66,15 @@ class MHE:
     def optimize(self, mu, z, sigma):
         mu = np.array(mu).T.flatten(order='F')
         x0 = np.array(deepcopy(self.pose_hist)).T
+        u0 = np.array(deepcopy(self.u_hist)).T
         z = np.swapaxes(np.array(z).T, 0, 1)
         sigma = np.array(sigma)
 
-        x_hat_opt = minimize(self.objective_fun, mu, method='SLSQP', jac=False, args=(x0, z, sigma, params.lms), options={'ftol':1e-5, 'disp':False})
+        x_hat_opt = minimize(self.objective_fun, mu, method='SLSQP', jac=False, args=(x0, u0, z, sigma, params.lms), options={'ftol':1e-5, 'disp':False})
 
         return x_hat_opt.x
     
-    def objective_fun(self, mu, x0, z, Sigmas, lms):
+    def objective_fun(self, mu, x0, u0, z, Sigmas, lms):
         R = np.diag([params.sigma_r**2, params.sigma_theta**2])
         R_inv = np.linalg.inv(R)
 
@@ -96,8 +97,15 @@ class MHE:
         e_z = 0.0
         for i in range(z.shape[2]):
             e_z += np.sum(np.diagonal(dz[:,:,i].T @ R_inv @ dz[:,:,i]))
+        
+        e_u = 0.0
+        for i in range(self.N):
+            u_temp = np.array([mu[2*i], mu[2*i+1]])
+            du = u0[:,i] - u_temp
+            Q = self.Q_hist[-(self.N - i)]
+            e_u += du @ Q @ du
 
-        return e_x + e_z
+        return e_x + e_z + e_u
 
     def h(self, mu_temp, lms): #Need to check if this works
         z_hat = np.zeros((2, lms.shape[1], int(mu_temp.size/3.0)))
