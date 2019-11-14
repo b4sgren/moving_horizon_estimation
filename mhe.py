@@ -12,10 +12,11 @@ class MHE:
         self.dt = t
         self.Sigma = np.eye(3)
 
-        self.pose_hist = []    # History of the last n poses
+        self.pose_hist = []    # History of the last n poses (do i want poses or the dead reckoning)
         self.Q_hist = []       # History of the noise from motion since it is dependent on v and w. Is this needed
         self.z_hist = []       # History of the measurements
         self.Sigma_hist = []   # History of the Pose Covariance
+        self.u_hist = []
 
         self.pose_hist.append(np.zeros(3))
         self.Sigma_hist.append(np.eye(3))
@@ -47,20 +48,24 @@ class MHE:
         self.Sigma_hist.append(self.Sigma)
         self.Q_hist.append(Q)
         self.z_hist.append(z)
+        self.u_hist.append(np.array([v,w]))
 
         if len(self.pose_hist) >= self.N + 1: # + 1 is a hack so we have 10 measurements also
-            mu = self.optimize(self.pose_hist[-self.N:], self.z_hist[-self.N:], self.Sigma_hist[-self.N:])
-        #Put mu back into pose_hist.
-            mu = mu.reshape((3, int(mu.size/3)), order='F')
-            mu[2] = unwrap(mu[2])
-            mu_bar = mu[:,-1]
+            # mu = self.optimize(self.pose_hist[-self.N:], self.z_hist[-self.N:], self.Sigma_hist[-self.N:])
+            mu = self.optimize(self.u_hist[-self.N:], self.z_hist[-self.N:], self.Sigma_hist[-self.N:])
+            #Put mu back into pose_hist.
+            mu = mu.reshape((2, int(mu.size/2)), order='F')
             for i in range(self.N):
-                self.pose_hist[-(self.N - i)] = mu[:,i]
+                # self.pose_hist[-(self.N - i)] = mu[:,i]
+                self.u_hist[-(self.N - i)] = mu[:,i]
+        mu_bar = np.array([params.x0, params.y0, params.theta0])
+        for i, u in enumerate(self.u_hist):
+            mu_bar = self.propagateState(mu_bar, u[0], u[1])
         return mu_bar, self.Sigma
     
     def optimize(self, mu, z, sigma):
         mu = np.array(mu).T.flatten(order='F')
-        x0 = deepcopy(mu)
+        x0 = np.array(deepcopy(self.pose_hist)).T
         z = np.swapaxes(np.array(z).T, 0, 1)
         sigma = np.array(sigma)
 
@@ -71,14 +76,20 @@ class MHE:
     def objective_fun(self, mu, x0, z, Sigmas, lms):
         R = np.diag([params.sigma_r**2, params.sigma_theta**2])
         R_inv = np.linalg.inv(R)
-        z_hat = self.h(mu, lms)  #Get all expected measurements
 
-        dx = (x0 - mu).reshape((3, int(mu.size/3)), order='F')
+        x_hist = [x0[:,-self.N]]
+        for i in range(self.N):
+            x_hist.append(self.propagateState(x_hist[i], mu[2*i], mu[2*i+1]))
+        x_hist = np.array(x_hist).T
+        x_hist = x_hist[:,1:]
+
+        z_hat = self.h(x_hist, lms)  #Get all expected measurements
+
+        dx = (x0[:,-self.N:] - x_hist)
         dx[2] = unwrap(dx[2])
         e_x = 0.0
         for i in range(Sigmas.shape[0]):
             e_x += dx[:,i] @ np.linalg.inv(Sigmas[i,:,:]) @ dx[:,i]
-        # e_x = np.sum(np.diagonal(dx.T @ Omega @ dx))
 
         dz = z - z_hat
         dz[1] = unwrap(dz[1])
@@ -88,9 +99,9 @@ class MHE:
 
         return e_x + e_z
 
-    def h(self, mu, lms): #Need to check if this works
-        z_hat = np.zeros((2, lms.shape[1], int(mu.size/3.0)))
-        mu_temp = mu.reshape((3, int(mu.size/3)), order='F')
+    def h(self, mu_temp, lms): #Need to check if this works
+        z_hat = np.zeros((2, lms.shape[1], int(mu_temp.size/3.0)))
+        # mu_temp = mu.reshape((3, int(mu.size/3)), order='F')
         for i in range(lms.shape[1]):
             lm = lms[:,i]
             ds = lm.reshape((2,1)) - mu_temp[0:2]
