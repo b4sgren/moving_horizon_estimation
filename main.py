@@ -59,7 +59,8 @@ if __name__ == "__main__":
     phi0 = params.theta0
     state = np.array([x0, y0, phi0])
     dead_reckon = np.array([x0, y0, phi0])
-    mu = np.array([x0, y0, phi0])
+    # mu = np.array([x0, y0, phi0])
+    mu = np.zeros(3)
     Sigma = np.eye(3) #Will we have a covariance with this estimator?
 
     for i in range(t.size):

@@ -17,8 +17,8 @@ class MHE:
         self.z_hist = []       # History of the measurements
         self.Sigma_hist = []   # History of the Pose Covariance
 
-        self.pose_hist.append(np.zeros(3))
-        self.Sigma_hist.append(np.eye(3))
+        # self.pose_hist.append(np.zeros(3))
+        # self.Sigma_hist.append(np.eye(3))
 
         self.N = 10  #Size of the window to optimize over
 
@@ -49,13 +49,20 @@ class MHE:
         self.z_hist.append(z)
 
         if len(self.pose_hist) >= self.N + 1: # + 1 is a hack so we have 10 measurements also
-            mu = self.optimize(self.pose_hist[-self.N:], self.z_hist[-self.N:], self.Sigma_hist[-self.N:])
-        #Put mu back into pose_hist.
+            mu = self.optimize(self.pose_hist[-self.N:], self.z_hist[-self.N:], self.Sigma_hist[-self.N:]) 
             mu = mu.reshape((3, int(mu.size/3)), order='F')
             mu[2] = unwrap(mu[2])
             mu_bar = mu[:,-1]
             for i in range(self.N):
                 self.pose_hist[-(self.N - i)] = mu[:,i]
+        else:
+            mu = self.optimize(self.pose_hist, self.z_hist, self.Sigma_hist) # z_hist doesn't have the same length as pose_hist here b/c original position doesn't have
+            mu = mu.reshape((3, int(mu.size/3)), order='F')
+            mu[2] = unwrap(mu[2])
+            mu_bar = mu[:,-1]
+            for i in range(int(mu_bar.size/3)):
+                self.pose_hist[i] = mu[:,i]
+            
         return mu_bar, self.Sigma
     
     def optimize(self, mu, z, sigma):
