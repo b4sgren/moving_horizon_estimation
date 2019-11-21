@@ -3,6 +3,8 @@ import car_params as params
 from copy import deepcopy
 from scipy.optimize import minimize
 
+from IPython.core.debugger import set_trace
+
 def unwrap(phi):
     phi -= 2 * np.pi * np.floor((phi + np.pi) * 0.5/np.pi)
     return phi
@@ -21,6 +23,8 @@ class MHE:
         # self.Sigma_hist.append(np.eye(3))
 
         self.N = 10  #Size of the window to optimize over
+        R = np.diag([params.sigma_r**2, params.sigma_theta**2])
+        self.R_inv = np.linalg.inv(R)
 
     def propagateState(self, state, v, w):
         theta = state[2]
@@ -76,22 +80,16 @@ class MHE:
         return x_hat_opt.x
     
     def objective_fun(self, mu, x0, z, Sigmas, lms):
-        R = np.diag([params.sigma_r**2, params.sigma_theta**2])
-        R_inv = np.linalg.inv(R)
+#        set_trace()
         z_hat = self.h(mu, lms)  #Get all expected measurements
 
-        dx = (x0 - mu).reshape((3, int(mu.size/3)), order='F')
-        dx[2] = unwrap(dx[2])
-        e_x = 0.0
-        for i in range(Sigmas.shape[0]):
-            e_x += dx[:,i] @ np.linalg.inv(Sigmas[i,:,:]) @ dx[:,i]
-        # e_x = np.sum(np.diagonal(dx.T @ Omega @ dx))
+        dx = (x0 - mu).reshape((-1, 3, 1), order='F')
+        dx[:,2] = unwrap(dx[:,2])
+        e_x = np.sum(dx.transpose(0,2,1) @ np.linalg.inv(Sigmas) @ dx)
 
         dz = z - z_hat
         dz[1] = unwrap(dz[1])
-        e_z = 0.0
-        for i in range(z.shape[2]):
-            e_z += np.sum(np.diagonal(dz[:,:,i].T @ R_inv @ dz[:,:,i]))
+        e_z = np.sum(dz.transpose(2,1,0) @ self.R_inv @ dz.transpose(2,0,1))
 
         return e_x + e_z
 
@@ -99,8 +97,7 @@ class MHE:
         z_hat = np.zeros((2, lms.shape[1], int(mu.size/3.0)))
         mu_temp = mu.reshape((3, int(mu.size/3)), order='F')
         for i in range(lms.shape[1]):
-            lm = lms[:,i]
-            ds = lm.reshape((2,1)) - mu_temp[0:2]
+            ds = lms[:,i:i+1] - mu_temp[0:2]
             r = np.sqrt(np.sum(ds * ds, axis=0))
             theta = np.arctan2(ds[1], ds[0]) - mu_temp[2]
             theta = unwrap(theta)
