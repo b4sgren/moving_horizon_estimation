@@ -80,12 +80,9 @@ class MHE:
         R_inv = np.linalg.inv(R)
         z_hat = self.h(mu, lms)  #Get all expected measurements
 
-        dx = (x0 - mu).reshape((3, int(mu.size/3)), order='F')
-        dx[2] = unwrap(dx[2])
-        e_x = 0.0
-        for i in range(Sigmas.shape[0]):
-            e_x += dx[:,i] @ np.linalg.inv(Sigmas[i,:,:]) @ dx[:,i]
-        # e_x = np.sum(np.diagonal(dx.T @ Omega @ dx))
+        dx = (x0 - mu).reshape((-1, 3, 1), order='F')
+        dx[:,2] = unwrap(dx[:,2])
+        e_x = np.sum(dx.transpose(0,2,1) @ np.linalg.inv(Sigmas) @ dx)
 
         dz = z - z_hat
         dz[1] = unwrap(dz[1])
