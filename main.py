@@ -74,7 +74,8 @@ if __name__ == "__main__":
         y_covar_hist.append(Sigma[1,1])
         psi_covar_hist.append(Sigma[2,2])
 
-        Car.animateCar(state, mu, dead_reckon)
+        if i > 0:
+            Car.animateCar(state, np.array(mhe.pose_hist).T, dead_reckon)
         plt.pause(0.02)
 
         state = mhe.propagateState(state, v[i], w[i])
