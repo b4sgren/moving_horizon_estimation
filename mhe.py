@@ -20,7 +20,7 @@ class MHE:
         # self.pose_hist.append(np.zeros(3))
         # self.Sigma_hist.append(np.eye(3))
 
-        self.N = 10  #Size of the window to optimize over
+        self.N = 5  #Size of the window to optimize over
 
     def propagateState(self, state, v, w):
         theta = state[2]
@@ -80,9 +80,13 @@ class MHE:
         R_inv = np.linalg.inv(R)
         z_hat = self.h(mu, lms)  #Get all expected measurements
 
-        dx = (x0 - mu).reshape((-1, 3, 1), order='F')
-        dx[:,2] = unwrap(dx[:,2])
-        e_x = np.sum(dx.transpose(0,2,1) @ np.linalg.inv(Sigmas) @ dx)
+        # dx = (x0 - mu).reshape((-1, 3, 1), order='F')
+        # dx[:,2] = unwrap(dx[:,2])
+        # e_x = np.sum(dx.transpose(0,2,1) @ np.linalg.inv(Sigmas) @ dx) # Error between initialization and optimized
+
+        temp = mu.reshape((-1,3,1), order='F') 
+        dx = np.diff(temp)
+        e_x = np.sum(dx.transpose(0,2,1)@ (np.eye(3) * 1e5) @ dx) #Error between successive poses
 
         dz = z - z_hat
         dz[1] = unwrap(dz[1])
