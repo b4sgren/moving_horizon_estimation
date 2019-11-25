@@ -86,6 +86,7 @@ class MHE:
 
         temp = mu.reshape((-1,3,1), order='F') 
         dx = np.diff(temp)
+        dx[:,2] = unwrap(dx[:,2])
         e_x = np.sum(dx.transpose(0,2,1)@ (np.eye(3) * 1e5) @ dx) #Error between successive poses
 
         dz = z - z_hat
