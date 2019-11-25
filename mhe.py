@@ -79,15 +79,25 @@ class MHE:
         R = np.diag([params.sigma_r**2, params.sigma_theta**2])
         R_inv = np.linalg.inv(R)
         z_hat = self.h(mu, lms)  #Get all expected measurements
+        Omega = 1.5e4 * np.eye(3)
 
         # dx = (x0 - mu).reshape((-1, 3, 1), order='F')
         # dx[:,2] = unwrap(dx[:,2])
         # e_x = np.sum(dx.transpose(0,2,1) @ np.linalg.inv(Sigmas) @ dx) # Error between initialization and optimized
 
-        temp = mu.reshape((-1,3,1), order='F') 
-        dx = np.diff(temp)
-        dx[:,2] = unwrap(dx[:,2])
-        e_x = np.sum(dx.transpose(0,2,1)@ (np.eye(3) * 1e5) @ dx) #Error between successive poses
+        if mu.size < 5:
+            temp = mu.reshape((-1,3,1), order='F') 
+            dmu = np.diff(temp) #Difference between sequential poses of estimate
+            dmu[:,2,:] = unwrap(dmu[:,2,:])
+            tempX0 = mu.reshape((-1, 3, 1), order='F')
+            dx0 = np.diff(tempX0) #Difference between sequential poses of initial guess
+            dx0[:,2,:] = unwrap(dx0[:,2,:])
+            dx = dx0 - dmu  #Difference between the 2 differences
+            dx[:,2,:] = unwrap(dx[:,2,:])
+            e_x = np.sum(dx.transpose(0,2,1)@ Omega @ dx) #Error between successive poses
+        else:
+            dx = (x0 - mu).reshape((-1, 3, 1), order='F')
+            e_x = np.sum(dx.transpose(0,2,1) @ Omega @ dx)
 
         dz = z - z_hat
         dz[1] = unwrap(dz[1])
