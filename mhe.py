@@ -79,7 +79,7 @@ class MHE:
         R = np.diag([params.sigma_r**2, params.sigma_theta**2])
         R_inv = np.linalg.inv(R)
         z_hat = self.h(mu, lms)  #Get all expected measurements
-        Omega = 1.5e4 * np.eye(3)
+        Omega = .5e4 * np.eye(3) #The higher I make this the smoother the path but the more it tends to deviate
 
         # dx = (x0 - mu).reshape((-1, 3, 1), order='F')
         # dx[:,2] = unwrap(dx[:,2])
