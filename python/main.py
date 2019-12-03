@@ -22,21 +22,32 @@ def readFile():
     return t, v, w
 
 def getMeasurements(state):
+    # z = np.zeros_like(params.lms, dtype=float)
+# 
+    # for i in range(z.shape[1]):
+        # lm = params.lms[:,i]
+        # ds = lm - state[0:2]
+# 
+        # r = np.sqrt(np.sum(ds**2))
+        # theta = np.arctan2(ds[1], ds[0]) - state[2]
+# 
+        # z[0,i] = r + np.random.normal(0, params.sigma_r)
+        # z[1,i] = theta + np.random.normal(0, params.sigma_theta)
+        # z[1,i] = unwrap(z[1,i])
     z = np.zeros_like(params.lms, dtype=float)
+    
+    ds = params.lms - state[0:2].reshape(2,1)
+    r = np.sqrt(np.sum(ds**2, axis=0))
+    theta = np.arctan2(ds[1], ds[0]) - state[2]
 
-    for i in range(z.shape[1]):
-        lm = params.lms[:,i]
-        ds = lm - state[0:2]
+    z[0] = r + np.random.normal(0, params.sigma_r, size=r.size) #Measurement noise seems to be what is making everything do really bad
+    z[1] = theta + np.random.normal(0, params.sigma_theta, size=theta.size)
+    z[1] = unwrap(z[1])
 
-        r = np.sqrt(np.sum(ds**2))
-        theta = np.arctan2(ds[1], ds[0]) - state[2]
-        # theta = unwrap(theta) #not sure if this should be here or down a few lines
+    ind = np.argwhere(np.abs(z[1]) < params.fov)
+    z = z[:, ind][:,:,0]
 
-        z[0,i] = r + np.random.normal(0, params.sigma_r)
-        z[1,i] = theta + np.random.normal(0, params.sigma_theta)
-        z[1,i] = unwrap(z[1,i])
-
-    return z
+    return z, ind.squeeze()
 
 if __name__ == "__main__":
     t = np.arange(0, params.tf, params.dt)
@@ -79,8 +90,8 @@ if __name__ == "__main__":
         plt.pause(0.02)
 
         state = mhe.propagateState(state, v[i], w[i])
-        zt = getMeasurements(state)
-        mu, Sigma= mhe.update(mu, zt, vc[i], wc[i])
+        zt, ind = getMeasurements(state)
+        mu, Sigma= mhe.update(mu, zt, ind, vc[i], wc[i])
         dead_reckon = mhe.propagateState(dead_reckon, vc[i], wc[i])
 
     fig1, ax1 = plt.subplots(nrows=3, ncols=1, sharex=True)

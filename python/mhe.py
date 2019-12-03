@@ -15,6 +15,7 @@ class MHE:
         self.pose_hist = []    # History of the last n poses
         self.Q_hist = []       # History of the noise from motion since it is dependent on v and w. Is this needed
         self.z_hist = []       # History of the measurements
+        self.z_ind_hist = []   # History of the which landmarks were measured at which time
         self.Sigma_hist = []   # History of the Pose Covariance
 
         # self.pose_hist.append(np.zeros(3))
@@ -36,7 +37,7 @@ class MHE:
         temp[2] = unwrap(temp[2])
         return temp
 
-    def update(self, mu, z, v, w):
+    def update(self, mu, z, z_ind, v, w):
         G, V, M, R = self.getJacobians(mu, v, w)    # Motion wrt states, Motion wrt inputs, Process noise (v/w), Sensor noise
         Q = V @ M @ V.T
 
@@ -47,16 +48,17 @@ class MHE:
         self.Sigma_hist.append(self.Sigma)
         self.Q_hist.append(Q)
         self.z_hist.append(z)
+        self.z_ind_hist.append(z_ind)
 
         if len(self.pose_hist) >= self.N + 1: # + 1 is a hack so we have 10 measurements also
-            mu = self.optimize(self.pose_hist[-self.N:], self.z_hist[-self.N:], self.Sigma_hist[-self.N:]) 
+            mu = self.optimize(self.pose_hist[-self.N:], self.z_hist[-self.N:], self.Sigma_hist[-self.N:], self.z_ind_hist[-self.N:]) 
             mu = mu.reshape((3, int(mu.size/3)), order='F')
             mu[2] = unwrap(mu[2])
             mu_bar = mu[:,-1]
             for i in range(self.N):
                 self.pose_hist[-(self.N - i)] = mu[:,i]
         else:
-            mu = self.optimize(self.pose_hist, self.z_hist, self.Sigma_hist) # z_hist doesn't have the same length as pose_hist here b/c original position doesn't have
+            mu = self.optimize(self.pose_hist, self.z_hist, self.Sigma_hist, self.z_ind_hist) # z_hist doesn't have the same length as pose_hist here b/c original position doesn't have
             mu = mu.reshape((3, int(mu.size/3)), order='F')
             mu[2] = unwrap(mu[2])
             mu_bar = mu[:,-1]
@@ -65,21 +67,23 @@ class MHE:
             
         return mu_bar, self.Sigma
     
-    def optimize(self, mu, z, sigma):
+    def optimize(self, mu, z, sigma, z_ind):
         mu = np.array(mu).T.flatten(order='F')
         x0 = deepcopy(mu)
-        z = np.swapaxes(np.array(z).T, 0, 1)
+        # z = np.swapaxes(np.array(z).T, 0, 1)
         sigma = np.array(sigma)
+        # z_ind = np.array(z_ind)
 
-        x_hat_opt = minimize(self.objective_fun, mu, method='SLSQP', jac=False, args=(x0, z, sigma, params.lms), options={'ftol':1e-5, 'disp':False})
+        x_hat_opt = minimize(self.objective_fun, mu, method='SLSQP', jac=False, args=(x0, z, z_ind, sigma, params.lms), options={'ftol':1e-5, 'disp':False})
 
         return x_hat_opt.x
     
-    def objective_fun(self, mu, x0, z, Sigmas, lms):
+    def objective_fun(self, mu, x0, z, z_ind, Sigmas, lms):
         R = np.diag([params.sigma_r**2, params.sigma_theta**2])
         R_inv = np.linalg.inv(R)
         z_hat = self.h(mu, lms)  #Get all expected measurements
-        Omega = .5e4 * np.eye(3) #The higher I make this the smoother the path but the more it tends to deviate
+        # Omega = 0.5e4 * np.eye(3) #The higher I make this the smoother the path but the more it tends to deviate 0.5e4
+        Omega = np.diag([.5e5, .5e5, .5e4]) #.5e5, .5e5, .5e4
 
         # dx = (x0 - mu).reshape((-1, 3, 1), order='F')
         # dx[:,2] = unwrap(dx[:,2])
@@ -99,11 +103,14 @@ class MHE:
             dx = (x0 - mu).reshape((-1, 3, 1), order='F')
             e_x = np.sum(dx.transpose(0,2,1) @ Omega @ dx)
 
-        dz = z - z_hat
-        dz[1] = unwrap(dz[1])
+        # dz = z - z_hat
+        # dz[1] = unwrap(dz[1])
         e_z = 0.0
-        for i in range(z.shape[2]):
-            e_z += np.sum(np.diagonal(dz[:,:,i].T @ R_inv @ dz[:,:,i]))
+        for i in range(len(z)):
+            ind = z_ind[i]
+            dz = z[i] - z_hat[:,ind, i]
+            dz[1] = unwrap(dz[1])
+            e_z += np.sum(np.diagonal(dz.T @ R_inv @ dz))
 
         return e_x + e_z
 
