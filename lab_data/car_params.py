@@ -1,9 +1,9 @@
 import numpy as np
 
 #initial position
-x0 = 2
-y0 = -2
-theta0 = 3 * np.pi / 4.0
+x0 = 2.5
+y0 = -1.7
+theta0 = .175
 
 #velocity motion model noise params
 alpha1 = 0.1
