@@ -79,6 +79,7 @@ class MHE:
         return x_hat_opt.x
     
     def objective_fun(self, mu, x0, z, z_ind, Sigmas, lms):
+        arrival_cost = len(z)**2
         R = np.diag([params.sigma_r**2, params.sigma_theta**2])
         R_inv = np.linalg.inv(R)
         z_hat = self.h(mu, lms)  #Get all expected measurements

@@ -5,7 +5,7 @@ x0 = -5
 y0 = -3
 theta0 = np.pi / 2.0
 
-fov = np.deg2rad(180/2.0) #how much to each side the robot can see
+fov = np.deg2rad(360/2.0) #how much to each side the robot can see
 
 #velocity motion model noise params
 alpha1 = 0.1
