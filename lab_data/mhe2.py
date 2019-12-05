@@ -78,15 +78,16 @@ class MHE:
     def objective_fun(self, mu, x0, z, z_ind, Sigmas, lms):
         R = np.diag([params.sigma_r**2, params.sigma_theta**2])
         R_inv = np.linalg.inv(R)
-        # z_hat = self.h(mu, lms, z_ind)  #Get all expected measurements
+        Omega = np.diag([1e3, 1e3, 0.5e3])
 
-        # dx = (x0 - mu).reshape((-1, 3, 1), order='F')
-        # dx[:,2] = unwrap(dx[:,2])
+        dx = (x0 - mu).reshape((-1, 3, 1), order='F')
+        dx[:,2] = unwrap(dx[:,2])
         # e_x = np.sum(dx.transpose(0,2,1) @ np.linalg.inv(Sigmas) @ dx) # Error between initialization and optimized
+        e_x = np.sum(dx.transpose(0,2,1) @ Omega @ dx)
 
-        temp = mu.reshape((-1,3,1), order='F')
-        dx = np.diff(temp)
-        e_x = np.sum(dx.transpose(0,2,1)@ (np.eye(3) * 1e5) @ dx) #Error between successive poses
+        # temp = mu.reshape((-1,3,1), order='F')
+        # dx = np.diff(temp)
+        # e_x = np.sum(dx.transpose(0,2,1)@ Omega @ dx) #Error between successive poses
 
         # dz = z - z_hat
         # dz[1] = unwrap(dz[1])

@@ -1,9 +1,9 @@
 import numpy as np
 
 #initial position
-x0 = -5
-y0 = -3
-theta0 = np.pi / 2.0
+x0 = 2
+y0 = -2
+theta0 = 3 * np.pi / 4.0
 
 #velocity motion model noise params
 alpha1 = 0.1
@@ -12,5 +12,5 @@ alpha3 = 0.01
 alpha4 = 0.1
 
 # Sensor noise params
-sigma_r = 0.1 #m
-sigma_theta = 0.05 #rad
+sigma_r = .3 #m .01
+sigma_theta = 0.02 #rad .01
