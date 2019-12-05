@@ -12,5 +12,5 @@ alpha3 = 0.01
 alpha4 = 0.1
 
 # Sensor noise params
-sigma_r = .3 #m .01
+sigma_r = .3 #m .1
 sigma_theta = 0.02 #rad .01
