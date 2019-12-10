@@ -76,21 +76,27 @@ class MHE:
         return x_hat_opt.x
 
     def objective_fun(self, mu, x0, z, z_ind, Sigmas, lms):
+        e_x = 0
+        e_z = 0
+        e_x2 = 0
         R = np.diag([params.sigma_r**2, params.sigma_theta**2])
         R_inv = np.linalg.inv(R)
         Omega = np.diag([1e3, 1e3, 0.5e3])
+        Omega2 = np.diag([1e3, 1e3, 0.5e3])
 
         dx = (x0 - mu).reshape((-1, 3, 1), order='F')
         dx[:,2] = unwrap(dx[:,2])
         # e_x = np.sum(dx.transpose(0,2,1) @ np.linalg.inv(Sigmas) @ dx) # Error between initialization and optimized
-        e_x = np.sum(dx.transpose(0,2,1) @ Omega @ dx)
+        e_x = np.sum(dx.transpose(0,2,1) @ Omega @ dx) #Hand tuned values
 
         # temp = mu.reshape((-1,3,1), order='F')
-        # dx = np.diff(temp)
-        # e_x = np.sum(dx.transpose(0,2,1)@ Omega @ dx) #Error between successive poses
+        # dx2 = np.diff(temp, axis=0)
+        # temp2 = x0.reshape((-1,3,1),order='F')
+        # dx0 = np.diff(temp2, axis=0)
+        # diff = dx0 = dx2
+        # diff[:,2] = unwrap(diff[:,2])
+        # e_x2 = np.sum((dx0 - dx2).transpose(0,2,1) @ Omega2 @ (dx0 - dx2)) #Error between successive poses
 
-        # dz = z - z_hat
-        # dz[1] = unwrap(dz[1])
         e_z = 0.0
         for i in range(len(z)):
             if z_ind[i].size > 0:
@@ -99,7 +105,7 @@ class MHE:
                 dz[1] = unwrap(dz[1])
                 e_z += np.sum(np.diagonal(dz.T @ R_inv @ dz))
 
-        return e_x + e_z
+        return e_x + e_z + e_x2
 
     def h(self, mu, lms, z_ind): #Need to check if this works
         mu_temp = mu.reshape((3, int(mu.size/3)), order='F')
