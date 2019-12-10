@@ -49,7 +49,7 @@ class MHE:
         self.z_hist.append(z)
 
         if len(self.pose_hist) >= self.N + 1: # + 1 is a hack so we have 10 measurements also
-            mu = self.optimize(self.pose_hist[-self.N:], self.z_hist[-self.N:], self.Sigma_hist[-self.N:]) 
+            mu = self.optimize(self.pose_hist[-self.N:], self.z_hist[-self.N:], self.Sigma_hist[-self.N:])
             mu = mu.reshape((3, int(mu.size/3)), order='F')
             mu[2] = unwrap(mu[2])
             mu_bar = mu[:,-1]
@@ -62,9 +62,9 @@ class MHE:
             mu_bar = mu[:,-1]
             for i in range(int(mu_bar.size/3)):
                 self.pose_hist[i] = mu[:,i]
-            
+
         return mu_bar, self.Sigma
-    
+
     def optimize(self, mu, z, sigma):
         mu = np.array(mu).T.flatten(order='F')
         x0 = deepcopy(mu)
@@ -74,28 +74,38 @@ class MHE:
         x_hat_opt = minimize(self.objective_fun, mu, method='SLSQP', jac=False, args=(x0, z, sigma, params.lms), options={'ftol':1e-5, 'disp':False})
 
         return x_hat_opt.x
-    
+
     def objective_fun(self, mu, x0, z, Sigmas, lms):
+        e_x = 0
+        e_z = 0
+        e_x2 = 0
         R = np.diag([params.sigma_r**2, params.sigma_theta**2])
         R_inv = np.linalg.inv(R)
         z_hat = self.h(mu, lms)  #Get all expected measurements
+        Omega = np.diag([3e3, 3e3, 1.5e3])
+        Omega2= np.diag([1e3, 1e3, 0.5e3])
 
-        # dx = (x0 - mu).reshape((-1, 3, 1), order='F')
-        # dx[:,2] = unwrap(dx[:,2])
-        # e_x = np.sum(dx.transpose(0,2,1) @ np.linalg.inv(Sigmas) @ dx) # Error between initialization and optimized
-
-        temp = mu.reshape((-1,3,1), order='F') 
-        dx = np.diff(temp)
+        dx = (x0 - mu).reshape((-1, 3, 1), order='F')
         dx[:,2] = unwrap(dx[:,2])
-        e_x = np.sum(dx.transpose(0,2,1)@ (np.eye(3) * 1e5) @ dx) #Error between successive poses
+        # e_x = np.sum(dx.transpose(0,2,1) @ np.linalg.inv(Sigmas) @ dx) # Error between initialization and optimized
+        e_x = np.sum(dx.transpose(0,2,1) @ Omega @ dx)
+
+        temp = mu.reshape((-1,3,1), order='F')
+        dx2 = np.diff(temp, axis=0)
+        # dx2[:,2] = unwrap(dx2[:,2])
+        temp2 = x0.reshape((-1,3,1),order='F')
+        dx0 = np.diff(temp2, axis=0)
+        # dx0[:,2] = unwrap(dx0[:,2])
+        diff = dx0 - dx2
+        diff[:,2] = unwrap(diff[:,2])
+        e_x2 = np.sum(diff.transpose(0,2,1)@ Omega2 @ diff) #Punishes changing the original edge size
 
         dz = z - z_hat
         dz[1] = unwrap(dz[1])
-        e_z = 0.0
         for i in range(z.shape[2]):
             e_z += np.sum(np.diagonal(dz[:,:,i].T @ R_inv @ dz[:,:,i]))
 
-        return e_x + e_z
+        return e_x + e_z + e_x2
 
     def h(self, mu, lms): #Need to check if this works
         z_hat = np.zeros((2, lms.shape[1], int(mu.size/3.0)))
@@ -108,8 +118,8 @@ class MHE:
             theta = unwrap(theta)
 
             z_temp = np.vstack((r, theta))
-            z_hat[:,i,:] = z_temp 
-        
+            z_hat[:,i,:] = z_temp
+
         return z_hat
 
     def getJacobians(self, mu, v, w):
