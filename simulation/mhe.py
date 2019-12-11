@@ -82,7 +82,10 @@ class MHE:
         R = np.diag([params.sigma_r**2, params.sigma_theta**2])
         R_inv = np.linalg.inv(R)
         z_hat = self.h(mu, lms)  #Get all expected measurements
-        Omega = np.diag([3e3, 3e3, 1.5e3])
+        if mu.size < 3 * self.N: #This is to account for the position error right at the beginning
+            Omega = np.diag([1e2, 1e2, 1])
+        else:
+            Omega = np.diag([0.9e4, 0.9e4, 5e3]) #1e4 1e4 5e3
         Omega2= np.diag([1e3, 1e3, 0.5e3])
 
         dx = (x0 - mu).reshape((-1, 3, 1), order='F')
@@ -90,15 +93,15 @@ class MHE:
         # e_x = np.sum(dx.transpose(0,2,1) @ np.linalg.inv(Sigmas) @ dx) # Error between initialization and optimized
         e_x = np.sum(dx.transpose(0,2,1) @ Omega @ dx)
 
-        temp = mu.reshape((-1,3,1), order='F')
-        dx2 = np.diff(temp, axis=0)
-        # dx2[:,2] = unwrap(dx2[:,2])
-        temp2 = x0.reshape((-1,3,1),order='F')
-        dx0 = np.diff(temp2, axis=0)
-        # dx0[:,2] = unwrap(dx0[:,2])
-        diff = dx0 - dx2
-        diff[:,2] = unwrap(diff[:,2])
-        e_x2 = np.sum(diff.transpose(0,2,1)@ Omega2 @ diff) #Punishes changing the original edge size
+        # temp = mu.reshape((-1,3,1), order='F')
+        # dx2 = np.diff(temp, axis=0)
+        # # dx2[:,2] = unwrap(dx2[:,2])
+        # temp2 = x0.reshape((-1,3,1),order='F')
+        # dx0 = np.diff(temp2, axis=0)
+        # # dx0[:,2] = unwrap(dx0[:,2])
+        # diff = dx0 - dx2
+        # diff[:,2] = unwrap(diff[:,2])
+        # e_x2 = np.sum(diff.transpose(0,2,1)@ Omega2 @ diff) #Punishes changing the original edge size
 
         dz = z - z_hat
         dz[1] = unwrap(dz[1])
