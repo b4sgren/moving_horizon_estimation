@@ -18,7 +18,7 @@ class MHE:
         self.z_ind_hist = []
         self.Sigma_hist = []   # History of the Pose Covariance
 
-        # self.pose_hist.append(np.zeros(3))
+        self.pose_hist.append(np.array([2.5, -1.7, 0.175]))
         # self.Sigma_hist.append(np.eye(3))
 
         self.N = 5  #Size of the window to optimize over
@@ -84,14 +84,14 @@ class MHE:
         Omega = np.diag([1e3, 1e3, 0.5e3])
         Omega2 = np.diag([1e3, 1e3, 0.5e3])
 
-        dx = (x0 - mu).reshape((-1, 3, 1), order='F')
-        dx[:,2] = unwrap(dx[:,2])
-        # e_x = np.sum(dx.transpose(0,2,1) @ np.linalg.inv(Sigmas) @ dx) # Error between initialization and optimized
-        e_x = np.sum(dx.transpose(0,2,1) @ Omega @ dx) #Hand tuned values
+        # dx = (x0 - mu).reshape((-1, 3, 1), order='C')
+        # dx[:,2] = unwrap(dx[:,2])
+        # # e_x = np.sum(dx.transpose(0,2,1) @ np.linalg.inv(Sigmas) @ dx) # Error between initialization and optimized
+        # e_x = np.sum(dx.transpose(0,2,1) @ Omega @ dx) #Hand tuned values
 
-        # temp = mu.reshape((-1,3,1), order='F')
+        temp = mu.reshape((-1,3,1), order='C')
         # dx2 = np.diff(temp, axis=0)
-        # temp2 = x0.reshape((-1,3,1),order='F')
+        temp2 = x0.reshape((-1,3,1),order='C')
         # dx0 = np.diff(temp2, axis=0)
         # diff = dx0 = dx2
         # diff[:,2] = unwrap(diff[:,2])
@@ -100,7 +100,7 @@ class MHE:
         e_z = 0.0
         for i in range(len(z)):
             if z_ind[i].size > 0:
-                z_hat = self.h(mu[3*i:3*i+3], lms, z_ind[i])
+                z_hat = self.h(mu[3*(i):3*(i)+3], lms, z_ind[i])
                 dz = z[i] - z_hat
                 dz[1] = unwrap(dz[1])
                 e_z += np.sum(np.diagonal(dz.T @ R_inv @ dz))
@@ -108,7 +108,7 @@ class MHE:
         return e_x + e_z + e_x2
 
     def h(self, mu, lms, z_ind): #Need to check if this works
-        mu_temp = mu.reshape((3, int(mu.size/3)), order='F')
+        mu_temp = mu.reshape((3, int(mu.size/3)), order='C')
         lm = lms[:,z_ind.squeeze()].reshape((2,-1))
         ds = lm - mu_temp[0:2]
         r = np.sqrt(np.sum(ds*ds, axis=0))

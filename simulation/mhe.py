@@ -86,7 +86,7 @@ class MHE:
             Omega = np.diag([1e2, 1e2, 1])
         else:
             Omega = np.diag([0.9e4, 0.9e4, 5e3]) #1e4 1e4 5e3
-        Omega2= np.diag([1e3, 1e3, 0.5e3])
+        Omega2= np.diag([1e1, 1e1, 0.5e1])
 
         dx = (x0 - mu).reshape((-1, 3, 1), order='F')
         dx[:,2] = unwrap(dx[:,2])
